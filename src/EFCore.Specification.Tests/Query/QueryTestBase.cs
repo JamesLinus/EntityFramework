@@ -11,22 +11,24 @@ using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Query.Expressions.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
+using Microsoft.EntityFrameworkCore.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
+// ReSharper disable UnusedVariable
 // ReSharper disable InconsistentNaming
 // ReSharper disable AccessToDisposedClosure
 // ReSharper disable StringCompareIsCultureSpecific.1
 // ReSharper disable StringEndsWithIsCultureSpecific
-
 // ReSharper disable ReplaceWithSingleCallToCount
 // ReSharper disable StringStartsWithIsCultureSpecific
 // ReSharper disable AccessToModifiedClosure
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract partial class QueryTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
     {
         [ConditionalFact]
         public virtual void Query_when_evaluatable_queryable_method_call_with_repository()
@@ -2794,24 +2796,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         }
 
         [ConditionalFact]
-        public virtual void Does_not_change_ordering_of_projection_with_complex_projections()
-        {
-            using (var context = CreateContext())
-            {
-                var q = from c in context.Customers.Include(e => e.Orders).Where(c => c.ContactTitle == "Owner").OrderBy(c => c.CustomerID)
-                        select new
-                        {
-                            Id = c.CustomerID,
-                            TotalOrders = c.Orders.Count
-                        };
-
-                var result = q.Where(e => e.TotalOrders > 2).ToList();
-
-                Assert.Equal(15, result.Count);
-            }
-        }
-
-        [ConditionalFact]
         public virtual void DateTime_parse_is_parameterized()
         {
             AssertQuery<Order>(
@@ -4097,10 +4081,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         protected NorthwindContext CreateContext() => Fixture.CreateContext();
 
-        protected QueryTestBase(TFixture fixture)
-        {
-            Fixture = fixture;
-        }
+        protected QueryTestBase(TFixture fixture) => Fixture = fixture;
 
         protected TFixture Fixture { get; }
 

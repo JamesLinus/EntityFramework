@@ -7,12 +7,12 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
 using Xunit;
-// ReSharper disable InconsistentNaming
 
+// ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query
 {
+    // ReSharper disable once UnusedTypeParameter
     public abstract partial class QueryTestBase<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
     {
         [ConditionalFact]
         public virtual void Select_All()

@@ -9,19 +9,21 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-// ReSharper disable ConvertToExpressionBodyWhenPossible
 
+// ReSharper disable InconsistentNaming
+// ReSharper disable ConvertToExpressionBodyWhenPossible
 // ReSharper disable AccessToDisposedClosure
-// ReSharper disable StringStartsWithIsCultureSpecific
 // ReSharper disable AccessToModifiedClosure
+// ReSharper disable StringStartsWithIsCultureSpecific
 // ReSharper disable StringEndsWithIsCultureSpecific
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class AsyncQueryTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
     {
         [ConditionalFact]
         public virtual async Task ToList_on_nav_in_projection_is_async()
@@ -3740,14 +3742,9 @@ namespace Microsoft.EntityFrameworkCore.Query
         }
 
         protected NorthwindContext CreateContext()
-        {
-            return Fixture.CreateContext();
-        }
+            => Fixture.CreateContext();
 
-        protected AsyncQueryTestBase(TFixture fixture)
-        {
-            Fixture = fixture;
-        }
+        protected AsyncQueryTestBase(TFixture fixture) => Fixture = fixture;
 
         protected TFixture Fixture { get; }
 

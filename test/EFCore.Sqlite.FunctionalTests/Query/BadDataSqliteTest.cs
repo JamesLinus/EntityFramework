@@ -9,23 +9,18 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
-using Microsoft.EntityFrameworkCore.TestModels.Northwind;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Storage.Internal;
+using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
+// ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query
 {
-    public class BadDataSqliteTest : IClassFixture<NorthwindQuerySqliteFixture>
+    public class BadDataSqliteTest : IClassFixture<BadDataSqliteTest.BadDataSqliteFixture>
     {
-        private readonly NorthwindQuerySqliteFixture _fixture;
-
-        public BadDataSqliteTest(NorthwindQuerySqliteFixture fixture)
-        {
-            _fixture = fixture;
-        }
-
         [Fact]
         public void Bad_data_error_handling_invalid_cast_key()
         {
@@ -34,7 +29,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(
                     CoreStrings.ErrorMaterializingValueInvalidCast(typeof(int), typeof(string)),
                     Assert.Throws<InvalidOperationException>(() =>
-                            context.Set<Product>().ToList()).Message);
+                        context.Set<Product>().Where(p => p.ProductID != 1).ToList()).Message);
             }
         }
 
@@ -46,7 +41,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(
                     CoreStrings.ErrorMaterializingValueNullReference(typeof(int)),
                     Assert.Throws<InvalidOperationException>(() =>
-                            context.Set<Product>().ToList()).Message);
+                        context.Set<Product>().Where(p => p.ProductID != 2).ToList()).Message);
             }
         }
 
@@ -58,7 +53,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(
                     CoreStrings.ErrorMaterializingValueInvalidCast(typeof(string), typeof(int)),
                     Assert.Throws<InvalidOperationException>(() =>
-                            context.Set<Product>().ToList()).Message);
+                        context.Set<Product>().Where(p => p.ProductID != 3).ToList()).Message);
             }
         }
 
@@ -70,7 +65,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(
                     CoreStrings.ErrorMaterializingValueInvalidCast(typeof(string), typeof(int)),
                     Assert.Throws<InvalidOperationException>(() =>
-                        context.Set<Product>()
+                        context.Set<Product>().Where(p => p.ProductID != 4)
                             .Select(p => p.ProductName)
                             .ToList()).Message);
             }
@@ -85,6 +80,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                     CoreStrings.ErrorMaterializingValueInvalidCast(typeof(int), typeof(string)),
                     Assert.Throws<InvalidOperationException>(() =>
                         context.Set<Product>()
+                            .Where(p => p.ProductID != 5)
                             .AsNoTracking()
                             .ToList()).Message);
             }
@@ -98,7 +94,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(
                     CoreStrings.ErrorMaterializingValueNullReference(typeof(bool)),
                     Assert.Throws<InvalidOperationException>(() =>
-                            context.Set<Product>().ToList()).Message);
+                        context.Set<Product>().Where(p => p.ProductID != 6).ToList()).Message);
             }
         }
 
@@ -111,6 +107,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                     CoreStrings.ErrorMaterializingValueNullReference(typeof(bool)),
                     Assert.Throws<InvalidOperationException>(() =>
                         context.Set<Product>()
+                            .Where(p => p.ProductID != 7)
                             .Select(p => p.Discontinued)
                             .ToList()).Message);
             }
@@ -125,6 +122,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                     CoreStrings.ErrorMaterializingValueNullReference(typeof(int)),
                     Assert.Throws<InvalidOperationException>(() =>
                         context.Set<Product>()
+                            .Where(p => p.ProductID != 8)
                             .AsNoTracking()
                             .ToList()).Message);
             }
@@ -143,8 +141,8 @@ namespace Microsoft.EntityFrameworkCore.Query
             public object[] Values { private get; set; }
 
             protected override IRelationalCommandBuilder CreateCore(
-                    IDiagnosticsLogger<DbLoggerCategory.Database.Command> logger,
-                    IRelationalTypeMapper relationalTypeMapper)
+                IDiagnosticsLogger<DbLoggerCategory.Database.Command> logger,
+                IRelationalTypeMapper relationalTypeMapper)
                 => new BadDataRelationalCommandBuilder(
                     logger, relationalTypeMapper, Values);
 
@@ -162,9 +160,9 @@ namespace Microsoft.EntityFrameworkCore.Query
                 }
 
                 protected override IRelationalCommand BuildCore(
-                        IDiagnosticsLogger<DbLoggerCategory.Database.Command> logger,
-                        string commandText,
-                        IReadOnlyList<IRelationalParameter> parameters)
+                    IDiagnosticsLogger<DbLoggerCategory.Database.Command> logger,
+                    string commandText,
+                    IReadOnlyList<IRelationalParameter> parameters)
                     => new BadDataRelationalCommand(logger, commandText, parameters, _values);
 
                 private class BadDataRelationalCommand : RelationalCommand
@@ -182,7 +180,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                     }
 
                     public override RelationalDataReader ExecuteReader(
-                            IRelationalConnection connection, IReadOnlyDictionary<string, object> parameterValues)
+                        IRelationalConnection connection, IReadOnlyDictionary<string, object> parameterValues)
                         => new BadDataRelationalDataReader(_values);
 
                     private class BadDataRelationalDataReader : RelationalDataReader
@@ -326,10 +324,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         private NorthwindContext CreateContext(params object[] values)
         {
-            var context = new NorthwindContext(
-                _fixture.BuildOptions(
-                    new ServiceCollection()
-                        .AddSingleton<IRelationalCommandBuilderFactory, BadDataCommandBuilderFactory>()));
+            var context = Fixture.CreateContext();
 
             var badDataCommandBuilderFactory
                 = (BadDataCommandBuilderFactory)context.GetService<IRelationalCommandBuilderFactory>();
@@ -337,6 +332,17 @@ namespace Microsoft.EntityFrameworkCore.Query
             badDataCommandBuilderFactory.Values = values;
 
             return context;
+        }
+
+        public BadDataSqliteFixture Fixture { get; }
+
+        public BadDataSqliteTest(BadDataSqliteFixture fixture) => Fixture = fixture;
+
+        public class BadDataSqliteFixture : NorthwindQuerySqliteFixture<NoopModelCustomizer>
+        {
+            protected override IServiceCollection AddServices(IServiceCollection serviceCollection)
+                => base.AddServices(serviceCollection)
+                    .AddSingleton<IRelationalCommandBuilderFactory, BadDataCommandBuilderFactory>();
         }
     }
 }

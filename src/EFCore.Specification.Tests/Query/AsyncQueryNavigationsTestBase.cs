@@ -6,13 +6,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
 using Xunit;
 
+// ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class AsyncQueryNavigationsTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
     {
         [ConditionalFact]
         public virtual async Task Include_with_multiple_optional_navigations()
@@ -35,15 +37,9 @@ namespace Microsoft.EntityFrameworkCore.Query
                 entryCount: 221);
         }
 
-        protected NorthwindContext CreateContext()
-        {
-            return Fixture.CreateContext();
-        }
+        protected NorthwindContext CreateContext() => Fixture.CreateContext();
 
-        protected AsyncQueryNavigationsTestBase(TFixture fixture)
-        {
-            Fixture = fixture;
-        }
+        protected AsyncQueryNavigationsTestBase(TFixture fixture) => Fixture = fixture;
 
         protected TFixture Fixture { get; }
 

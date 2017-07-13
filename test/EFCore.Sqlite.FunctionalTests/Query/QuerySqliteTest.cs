@@ -2,15 +2,16 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Microsoft.EntityFrameworkCore.Query
 {
-    public class QuerySqliteTest : QueryTestBase<NorthwindQuerySqliteFixture>
+    public class QuerySqliteTest : QueryTestBase<NorthwindQuerySqliteFixture<NoopModelCustomizer>>
     {
         // ReSharper disable once UnusedParameter.Local
-        public QuerySqliteTest(NorthwindQuerySqliteFixture fixture, ITestOutputHelper testOutputHelper)
+        public QuerySqliteTest(NorthwindQuerySqliteFixture<NoopModelCustomizer> fixture, ITestOutputHelper testOutputHelper)
             : base(fixture)
         {
             fixture.TestSqlLoggerFactory.Clear();

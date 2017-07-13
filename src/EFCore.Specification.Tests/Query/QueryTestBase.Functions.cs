@@ -17,12 +17,10 @@ using Xunit;
 // ReSharper disable CompareOfFloatsByEqualityOperator
 // ReSharper disable ConditionIsAlwaysTrueOrFalse
 // ReSharper disable SpecifyACultureInStringConversionExplicitly
-
 namespace Microsoft.EntityFrameworkCore.Query
 {
     // ReSharper disable once UnusedTypeParameter
     public abstract partial class QueryTestBase<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
     {
         [ConditionalFact]
         public virtual void String_StartsWith_Literal()

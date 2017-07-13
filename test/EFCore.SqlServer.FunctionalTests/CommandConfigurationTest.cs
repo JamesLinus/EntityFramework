@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
+// ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore
 {
     public class CommandConfigurationTest : IClassFixture<CommandConfigurationTest.CommandConfigurationTestFixture>, IDisposable
@@ -30,7 +31,7 @@ namespace Microsoft.EntityFrameworkCore
                 .AddEntityFrameworkSqlServer()
                 .BuildServiceProvider();
 
-            public virtual SqlServerTestStore CreateDatabase() => SqlServerTestStore.GetOrCreateShared("CommandConfiguration");
+            public virtual SqlServerTestStore CreateDatabase() => SqlServerTestStore.GetOrCreateShared("CommandConfiguration", () => { });
         }
 
         [Fact]

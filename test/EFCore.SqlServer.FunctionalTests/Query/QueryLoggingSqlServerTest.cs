@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Microsoft.EntityFrameworkCore.Query
 {
-    public class QueryLoggingSqlServerTest : IClassFixture<NorthwindQuerySqlServerFixture>
+    public class QueryLoggingSqlServerTest : IClassFixture<IncludeSqlServerFixture>
     {
         private const string FileLineEnding = @"
 ";
@@ -30,7 +30,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 select [<generated>_0]'
     Optimized query model: 
 'from Customer <generated>_0 in DbSet<Customer>",
-                    _fixture.TestSqlLoggerFactory.Log.Replace(Environment.NewLine, FileLineEnding));
+                    Fixture.TestSqlLoggerFactory.Log.Replace(Environment.NewLine, FileLineEnding));
             }
         }
 
@@ -48,7 +48,7 @@ select [<generated>_0]'
                         .ToList();
 
                 Assert.NotNull(customers);
-                Assert.Contains(CoreStrings.LogSensitiveDataLoggingEnabled.GenerateMessage(), _fixture.TestSqlLoggerFactory.Log);
+                Assert.Contains(CoreStrings.LogSensitiveDataLoggingEnabled.GenerateMessage(), Fixture.TestSqlLoggerFactory.Log);
             }
         }
 
@@ -64,7 +64,7 @@ select [<generated>_0]'
                         .ToList();
 
                 Assert.NotNull(customers);
-                Assert.Contains(CoreStrings.LogIgnoredInclude.GenerateMessage("[c].Orders"), _fixture.TestSqlLoggerFactory.Log);
+                Assert.Contains(CoreStrings.LogIgnoredInclude.GenerateMessage("[c].Orders"), Fixture.TestSqlLoggerFactory.Log);
             }
         }
 
@@ -87,18 +87,18 @@ select [c]).Include(""Orders"")'
     Optimized query model: 
 'from Customer c in DbSet<Customer>"
                     ,
-                    _fixture.TestSqlLoggerFactory.Log.Replace(Environment.NewLine, FileLineEnding));
+                    Fixture.TestSqlLoggerFactory.Log.Replace(Environment.NewLine, FileLineEnding));
             }
         }
 
-        private readonly NorthwindQuerySqlServerFixture _fixture;
+        protected IncludeSqlServerFixture Fixture { get; }
 
-        public QueryLoggingSqlServerTest(NorthwindQuerySqlServerFixture fixture)
+        public QueryLoggingSqlServerTest(IncludeSqlServerFixture fixture)
         {
-            _fixture = fixture;
-            _fixture.TestSqlLoggerFactory.Clear();
+            Fixture = fixture;
+            Fixture.TestSqlLoggerFactory.Clear();
         }
 
-        protected NorthwindContext CreateContext() => _fixture.CreateContext();
+        protected NorthwindContext CreateContext() => Fixture.CreateContext();
     }
 }

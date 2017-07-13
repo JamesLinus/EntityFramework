@@ -3,13 +3,15 @@
 
 using System.Linq;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
 using Xunit;
 
+// ReSharper disable InconsistentNaming
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class ChangeTrackingTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
     {
         [Fact]
         public virtual void Entity_reverts_when_state_set_to_unchanged()
@@ -235,7 +237,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         [Fact]
         public virtual void Can_disable_and_reenable_query_result_tracking_starting_with_NoTracking()
         {
-            using (var context = Fixture.CreateContext(QueryTrackingBehavior.NoTracking))
+            using (var context = CreateNoTrackingContext())
             {
                 Assert.Equal(QueryTrackingBehavior.NoTracking, context.ChangeTracker.QueryTrackingBehavior);
 
@@ -292,7 +294,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 Assert.Equal(9, context.ChangeTracker.Entries().Count());
             }
 
-            using (var context = Fixture.CreateContext(QueryTrackingBehavior.NoTracking))
+            using (var context = CreateNoTrackingContext())
             {
                 Assert.Equal(QueryTrackingBehavior.NoTracking, context.ChangeTracker.QueryTrackingBehavior);
 
@@ -329,7 +331,7 @@ namespace Microsoft.EntityFrameworkCore.Query
         [Fact]
         public virtual void AsTracking_switches_tracking_on_when_off_in_options()
         {
-            using (var context = Fixture.CreateContext(QueryTrackingBehavior.NoTracking))
+            using (var context = CreateNoTrackingContext())
             {
                 var results = context.Employees.AsTracking().ToList();
 
@@ -370,7 +372,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 var customers
                     = (from c in context.Set<Customer>().AsNoTracking()
                        join o in context.Set<Order>().AsTracking()
-                       on c.CustomerID equals o.CustomerID
+                           on c.CustomerID equals o.CustomerID
                        where c.CustomerID == "ALFKI"
                        select o)
                         .ToList();
@@ -388,7 +390,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 var customers
                     = (from c in context.Set<Customer>().AsTracking()
                        join o in context.Set<Order>().AsNoTracking()
-                       on c.CustomerID equals o.CustomerID
+                           on c.CustomerID equals o.CustomerID
                        where c.CustomerID == "ALFKI"
                        select o)
                         .ToList();
@@ -406,7 +408,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 var customers
                     = (from c in context.Set<Customer>().AsTracking()
                        join o in context.Set<Order>()
-                       on c.CustomerID equals o.CustomerID
+                           on c.CustomerID equals o.CustomerID
                        where c.CustomerID == "ALFKI"
                        select o)
                         .AsNoTracking()
@@ -419,10 +421,14 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         protected NorthwindContext CreateContext() => Fixture.CreateContext();
 
-        protected ChangeTrackingTestBase(TFixture fixture)
-        {
-            Fixture = fixture;
-        }
+        protected NorthwindContext CreateNoTrackingContext()
+            => CreateContext(new DbContextOptionsBuilder(Fixture.CreateOptions())
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking).Options);
+
+        protected virtual NorthwindContext CreateContext(DbContextOptions options)
+            => new NorthwindContext(options);
+        
+        protected ChangeTrackingTestBase(TFixture fixture) => Fixture = fixture;
 
         protected TFixture Fixture { get; }
     }

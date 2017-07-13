@@ -6,13 +6,15 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Xunit;
 
+// ReSharper disable InconsistentNaming
 // ReSharper disable AccessToDisposedClosure
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class WarningsTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryRelationalFixture, new()
+        where TFixture : NorthwindQueryRelationalFixture<NoopModelCustomizer>, new()
     {
         [Fact]
         public virtual void Throws_when_warning_as_error()
@@ -20,8 +22,8 @@ namespace Microsoft.EntityFrameworkCore.Query
             using (var context = CreateContext())
             {
                 Assert.Equal(CoreStrings.WarningAsErrorTemplate(
-                        RelationalEventId.QueryClientEvaluationWarning,
-                        RelationalStrings.LogClientEvalWarning.GenerateMessage("where [c].IsLondon")),
+                    RelationalEventId.QueryClientEvaluationWarning,
+                    RelationalStrings.LogClientEvalWarning.GenerateMessage("where [c].IsLondon")),
                     Assert.Throws<InvalidOperationException>(
                         () => context.Customers.Where(c => c.IsLondon).ToList()).Message);
             }
@@ -110,8 +112,8 @@ namespace Microsoft.EntityFrameworkCore.Query
             using (var context = CreateContext())
             {
                 Assert.Equal(CoreStrings.WarningAsErrorTemplate(
-                        RelationalEventId.QueryClientEvaluationWarning,
-                        RelationalStrings.LogClientEvalWarning.GenerateMessage("Last()")),
+                    RelationalEventId.QueryClientEvaluationWarning,
+                    RelationalStrings.LogClientEvalWarning.GenerateMessage("Last()")),
                     Assert.Throws<InvalidOperationException>(
                         () => context.Customers.Last()).Message);
             }
@@ -123,8 +125,8 @@ namespace Microsoft.EntityFrameworkCore.Query
             using (var context = CreateContext())
             {
                 Assert.Equal(CoreStrings.WarningAsErrorTemplate(
-                        RelationalEventId.QueryClientEvaluationWarning,
-                        RelationalStrings.LogClientEvalWarning.GenerateMessage("Last()")),
+                    RelationalEventId.QueryClientEvaluationWarning,
+                    RelationalStrings.LogClientEvalWarning.GenerateMessage("Last()")),
                     Assert.Throws<InvalidOperationException>(
                         () => context.Customers.Where(c => c.CustomerID == "ALFKI" && c.Orders.OrderBy(o => o.OrderID).Last().OrderID > 1000).ToList()).Message);
             }
@@ -136,8 +138,8 @@ namespace Microsoft.EntityFrameworkCore.Query
             using (var context = CreateContext())
             {
                 Assert.Equal(CoreStrings.WarningAsErrorTemplate(
-                        RelationalEventId.QueryClientEvaluationWarning,
-                        RelationalStrings.LogClientEvalWarning.GenerateMessage("LastOrDefault()")),
+                    RelationalEventId.QueryClientEvaluationWarning,
+                    RelationalStrings.LogClientEvalWarning.GenerateMessage("LastOrDefault()")),
                     Assert.Throws<InvalidOperationException>(
                         () => context.Customers.LastOrDefault()).Message);
             }
@@ -165,10 +167,7 @@ namespace Microsoft.EntityFrameworkCore.Query
 
         protected NorthwindContext CreateContext() => Fixture.CreateContext();
 
-        protected WarningsTestBase(TFixture fixture)
-        {
-            Fixture = fixture;
-        }
+        protected WarningsTestBase(TFixture fixture) => Fixture = fixture;
 
         protected TFixture Fixture { get; }
     }

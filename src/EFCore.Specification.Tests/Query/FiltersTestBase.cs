@@ -13,11 +13,10 @@ using Xunit;
 // ReSharper disable ConvertToExpressionBodyWhenPossible
 // ReSharper disable ConvertMethodToExpressionBody
 // ReSharper disable StringStartsWithIsCultureSpecific
-
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class FiltersTestBase<TFixture> : IClassFixture<TFixture>, IDisposable
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NorthwindFiltersCustomizer>, new()
     {
         [ConditionalFact]
         public virtual void Count_query()
@@ -36,7 +35,6 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             Assert.Null(_context.Find<Customer>("ALFKI"));
         }
-
 
         [ConditionalFact]
         public virtual void Client_eval()
@@ -164,10 +162,7 @@ namespace Microsoft.EntityFrameworkCore.Query
             _context = CreateContext();
         }
 
-        private NorthwindContext CreateContext()
-        {
-            return Fixture.CreateContext(enableFilters: true);
-        }
+        private NorthwindContext CreateContext() => Fixture.CreateContext();
 
         public void Dispose() => _context.Dispose();
     }

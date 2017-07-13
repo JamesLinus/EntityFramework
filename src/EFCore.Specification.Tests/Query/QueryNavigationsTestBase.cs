@@ -6,10 +6,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore.TestModels.Northwind;
+using Microsoft.EntityFrameworkCore.TestUtilities;
 using Microsoft.EntityFrameworkCore.TestUtilities.Xunit;
+using Microsoft.EntityFrameworkCore.Utilities;
 using Xunit;
-// ReSharper disable ConvertToExpressionBodyWhenPossible
 
+// ReSharper disable UnusedVariable
+// ReSharper disable ConvertToExpressionBodyWhenPossible
 // ReSharper disable InconsistentNaming
 // ReSharper disable PossibleMultipleEnumeration
 // ReSharper disable ReplaceWithSingleCallToFirstOrDefault
@@ -22,7 +25,7 @@ using Xunit;
 namespace Microsoft.EntityFrameworkCore.Query
 {
     public abstract class QueryNavigationsTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : NorthwindQueryFixtureBase, new()
+        where TFixture : NorthwindQueryFixtureBase<NoopModelCustomizer>, new()
     {
         [ConditionalFact]
         public virtual void Join_with_nav_projected_in_subquery_when_client_eval()
@@ -96,7 +99,7 @@ namespace Microsoft.EntityFrameworkCore.Query
                 entryCount: 89);
         }
 
-        private static Random randomGenrator = new Random();
+        private static readonly Random randomGenrator = new Random();
         private static T ClientProjection<T>(T t, object _) => t;
         private static bool ClientPredicate<T>(T t, object _) => true;
         private static int ClientOrderBy<T>(T t, object _) => randomGenrator.Next(0, 20);
@@ -1113,19 +1116,19 @@ namespace Microsoft.EntityFrameworkCore.Query
                             where c.CustomerID.StartsWith("A")
                             select new { c, G = grouping.Select(o => o.OrderDetails).ToList() },
                 asserter: (l2oItems, efItems) =>
+                    {
+                        var l2oResults = l2oItems.Cast<dynamic>().ToList();
+                        var efResults = efItems.Cast<dynamic>().ToList();
+
+                        for (var i = 0; i < l2oResults.Count; i++)
                         {
-                            var l2oResults = l2oItems.Cast<dynamic>().ToList();
-                            var efResults = efItems.Cast<dynamic>().ToList();
+                            var l2oResult = l2oResults[i];
+                            var efResult = efResults[i];
 
-                            for (var i = 0; i < l2oResults.Count; i++)
-                            {
-                                var l2oResult = l2oResults[i];
-                                var efResult = efResults[i];
-
-                                Assert.Equal(l2oResult.c.CustomerID, efResult.c.CustomerID);
-                                Assert.Equal(l2oResult.G.Count, efResult.G.Count);
-                            }
-                        },
+                            Assert.Equal(l2oResult.c.CustomerID, efResult.c.CustomerID);
+                            Assert.Equal(l2oResult.G.Count, efResult.G.Count);
+                        }
+                    },
                 entryCount: 4);
         }
 
