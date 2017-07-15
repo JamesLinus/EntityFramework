@@ -5,36 +5,88 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
-using Microsoft.EntityFrameworkCore.TestUtilities;
+using Microsoft.EntityFrameworkCore.Query;
 
-namespace Microsoft.EntityFrameworkCore.Query
+namespace Microsoft.EntityFrameworkCore.TestUtilities
 {
-    public abstract class QueryTestBase<TFixture> : IClassFixture<TFixture>
-        where TFixture : class, IQueryFixtureBase, new()
+    public class QueryAsserter<TContext> : IQueryAsserter
+        where TContext : DbContext
     {
-        protected QueryTestBase(TFixture fixture)
+        private readonly Func<TContext> _contextCreator;
+        private readonly Dictionary<Type, Func<dynamic, object>> _entitySorters;
+        private readonly Dictionary<Type, Action<dynamic, dynamic>> _entityAsserters;
+
+        private IExpectedData _expectedData;
+        private ISetExtractor _setExtractor;
+        private IncludeQueryResultAsserter _includeResultAsserter;
+
+        public QueryAsserter(
+            Func<TContext> contextCreator,
+            IExpectedData expectedData,
+            Dictionary<Type, Func<dynamic, object>> entitySorters,
+            Dictionary<Type, Action<dynamic, dynamic>> entityAsserters)
         {
-            Fixture = fixture;
+            _contextCreator = contextCreator;
+            _expectedData = expectedData;
+
+            _entitySorters = entitySorters ?? new Dictionary<Type, Func<dynamic, object>>();
+            _entityAsserters = entityAsserters ?? new Dictionary<Type, Action<dynamic, dynamic>>();
+
+            _setExtractor = new DefaultSetExtractor();
+            _includeResultAsserter = new IncludeQueryResultAsserter(_entitySorters, _entityAsserters);
         }
 
-        protected TFixture Fixture { get; }
+        public virtual ISetExtractor SetExtractor => _setExtractor;
+
+        public virtual IExpectedData ExpectedData => _expectedData;
+
+        public virtual void UseSetExtractor(ISetExtractor setExtractor)
+        {
+            _setExtractor = setExtractor;
+        }
+
+        public virtual void UseExpectedData(IExpectedData expectedData)
+        {
+            _expectedData = expectedData;
+        }
 
         #region AssertSingleResult
 
-        protected virtual void AssertSingleResult<TItem1>(
+        // one argument
+
+        public virtual void AssertSingleResult<TItem1>(
             Func<IQueryable<TItem1>, object> query,
             Action<object, object> asserter = null,
             int entryCount = 0)
             where TItem1 : class
-            =>  AssertSingleResult(query, query, asserter, entryCount);
+            => AssertSingleResult(query, query, asserter, entryCount);
 
-        protected virtual void AssertSingleResult<TItem1>(
+        public virtual void AssertSingleResult<TItem1>(
             Func<IQueryable<TItem1>, object> actualQuery,
             Func<IQueryable<TItem1>, object> expectedQuery,
             Action<object, object> asserter = null,
             int entryCount = 0)
             where TItem1 : class
-            => Fixture.QueryAsserter.AssertSingleResult(actualQuery, expectedQuery, asserter, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(_setExtractor.Set<TItem1>(context));
+                var expected = expectedQuery(_expectedData.Set<TItem1>());
+
+                if (asserter != null)
+                {
+                    asserter(expected, actual);
+                }
+                else
+                {
+                    Assert.Equal(expected, actual);
+                }
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
+
+        // two arguments
 
         public virtual void AssertSingleResult<TItem1, TItem2>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, object> query,
@@ -51,7 +103,31 @@ namespace Microsoft.EntityFrameworkCore.Query
             int entryCount = 0)
             where TItem1 : class
             where TItem2 : class
-            => Fixture.QueryAsserter.AssertSingleResult(actualQuery, expectedQuery, asserter, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context));
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>());
+
+                if (asserter != null)
+                {
+                    asserter(expected, actual);
+                }
+                else
+                {
+                    Assert.Equal(expected, actual);
+                }
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
+
+        // three arguments
 
         public virtual void AssertSingleResult<TItem1, TItem2, TItem3>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<TItem3>, object> query,
@@ -70,11 +146,37 @@ namespace Microsoft.EntityFrameworkCore.Query
             where TItem1 : class
             where TItem2 : class
             where TItem3 : class
-            => Fixture.QueryAsserter.AssertSingleResult(actualQuery, expectedQuery, asserter, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context),
+                    _setExtractor.Set<TItem3>(context));
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>(),
+                    _expectedData.Set<TItem3>());
+
+                if (asserter != null)
+                {
+                    asserter(expected, actual);
+                }
+                else
+                {
+                    Assert.Equal(expected, actual);
+                }
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
 
         #endregion
 
         #region AssertQuery
+
+        // one argument
 
         public virtual void AssertQuery<TItem1>(
             Func<IQueryable<TItem1>, IQueryable<object>> query,
@@ -93,7 +195,29 @@ namespace Microsoft.EntityFrameworkCore.Query
             bool assertOrder = false,
             int entryCount = 0)
             where TItem1 : class
-            => Fixture.QueryAsserter.AssertQuery(actualQuery, expectedQuery, elementSorter, elementAsserter, assertOrder, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(_setExtractor.Set<TItem1>(context)).ToArray();
+                var expected = expectedQuery(_expectedData.Set<TItem1>()).ToArray();
+
+                if (!assertOrder && elementSorter == null && expected.Length > 0 && expected[0] != null)
+                {
+                    _entitySorters.TryGetValue(expected[0].GetType(), out elementSorter);
+                }
+
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    elementSorter ?? (e => e),
+                    elementAsserter ?? ((e, a) => Assert.Equal(e, a)),
+                    assertOrder);
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
+
+        // two arguments
 
         public virtual void AssertQuery<TItem1, TItem2>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> query,
@@ -114,8 +238,34 @@ namespace Microsoft.EntityFrameworkCore.Query
             int entryCount = 0)
             where TItem1 : class
             where TItem2 : class
-            => Fixture.QueryAsserter.AssertQuery(actualQuery, expectedQuery, elementSorter, elementAsserter, assertOrder, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context)).ToArray();
 
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(), 
+                    _expectedData.Set<TItem2>()).ToArray();
+
+                if (!assertOrder && elementSorter == null && expected.Length > 0 && expected[0] != null)
+                {
+                    _entitySorters.TryGetValue(expected[0].GetType(), out elementSorter);
+                }
+
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    elementSorter ?? (e => e),
+                    elementAsserter ?? ((e, a) => Assert.Equal(e, a)),
+                    assertOrder);
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
+
+        // three arguments
         public virtual void AssertQuery<TItem1, TItem2, TItem3>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<TItem3>, IQueryable<object>> query,
             Func<dynamic, object> elementSorter = null,
@@ -137,11 +287,40 @@ namespace Microsoft.EntityFrameworkCore.Query
             where TItem1 : class
             where TItem2 : class
             where TItem3 : class
-            => Fixture.QueryAsserter.AssertQuery(actualQuery, expectedQuery, elementSorter, elementAsserter, assertOrder, entryCount);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context),
+                    _setExtractor.Set<TItem3>(context)).ToArray();
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>(),
+                    _expectedData.Set<TItem3>()).ToArray();
+
+                if (!assertOrder && elementSorter == null && expected.Length > 0 && expected[0] != null)
+                {
+                    _entitySorters.TryGetValue(expected[0].GetType(), out elementSorter);
+                }
+
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    elementSorter ?? (e => e),
+                    elementAsserter ?? ((e, a) => Assert.Equal(e, a)),
+                    assertOrder);
+
+                Assert.Equal(entryCount, context.ChangeTracker.Entries().Count());
+            }
+        }
 
         #endregion
 
         #region AssertQueryScalar
+
+        // one argument
 
         public virtual void AssertQueryScalar<TItem1>(
             Func<IQueryable<TItem1>, IQueryable<int>> query,
@@ -187,7 +366,21 @@ namespace Microsoft.EntityFrameworkCore.Query
             bool assertOrder = false)
             where TItem1 : class
             where TResult : struct
-            => Fixture.QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(_setExtractor.Set<TItem1>(context)).ToArray();
+                var expected = expectedQuery(_expectedData.Set<TItem1>()).ToArray();
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    e => e,
+                    Assert.Equal,
+                    assertOrder);
+            }
+        }
+
+        // two arguments
 
         public virtual void AssertQueryScalar<TItem1, TItem2>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<int>> query,
@@ -211,7 +404,27 @@ namespace Microsoft.EntityFrameworkCore.Query
             where TItem1 : class
             where TItem2 : class
             where TResult : struct
-            => Fixture.QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context)).ToArray();
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>()).ToArray();
+
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    e => e,
+                    Assert.Equal,
+                    assertOrder);
+            }
+        }
+
+        // three arguments
 
         public virtual void AssertQueryScalar<TItem1, TItem2, TItem3>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<TItem3>, IQueryable<int>> query,
@@ -229,11 +442,33 @@ namespace Microsoft.EntityFrameworkCore.Query
             where TItem2 : class
             where TItem3 : class
             where TResult : struct
-            => Fixture.QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context),
+                    _setExtractor.Set<TItem3>(context)).ToArray();
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>(),
+                    _expectedData.Set<TItem3>()).ToArray();
+
+                TestHelpers.AssertResults(
+                    expected,
+                    actual,
+                    e => e,
+                    Assert.Equal,
+                    assertOrder);
+            }
+        }
 
         #endregion
 
-        #region AssertQueryScalar - nullable
+        #region AssertQueryNullableScalar
+
+        // one argument
 
         public virtual void AssertQueryScalar<TItem1>(
             Func<IQueryable<TItem1>, IQueryable<int?>> query,
@@ -254,7 +489,21 @@ namespace Microsoft.EntityFrameworkCore.Query
             bool assertOrder = false)
             where TItem1 : class
             where TResult : struct
-            => Fixture.QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(_setExtractor.Set<TItem1>(context)).ToArray();
+                var expected = expectedQuery(_expectedData.Set<TItem1>()).ToArray();
+                TestHelpers.AssertResultsNullable(
+                    expected,
+                    actual,
+                    e => e,
+                    Assert.Equal,
+                    assertOrder);
+            }
+        }
+
+        // two arguments
 
         public virtual void AssertQueryScalar<TItem1, TItem2>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<int?>> query,
@@ -278,7 +527,24 @@ namespace Microsoft.EntityFrameworkCore.Query
             where TItem1 : class
             where TItem2 : class
             where TResult : struct
-            => Fixture.QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = actualQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context)).ToArray();
+
+                var expected = expectedQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>()).ToArray();
+                TestHelpers.AssertResultsNullable(
+                    expected,
+                    actual,
+                    e => e,
+                    Assert.Equal,
+                    assertOrder);
+            }
+        }
 
         #endregion
 
@@ -293,13 +559,33 @@ namespace Microsoft.EntityFrameworkCore.Query
             => AssertIncludeQuery(query, query, expectedIncludes, elementSorter, clientProjection);
 
         public void AssertIncludeQuery<TItem1>(
-            Func<IQueryable<TItem1>, IQueryable<object>> actualQuery,
-            Func<IQueryable<TItem1>, IQueryable<object>> expectedQuery,
+            Func<IQueryable<TItem1>, IQueryable<object>> efQuery,
+            Func<IQueryable<TItem1>, IQueryable<object>> l2oQuery,
             List<IExpectedInclude> expectedIncludes,
             Func<dynamic, object> elementSorter = null,
             Func<dynamic, object> clientProjection = null)
             where TItem1 : class
-            => Fixture.QueryAsserter.AssertIncludeQuery(actualQuery, expectedQuery, expectedIncludes, elementSorter, clientProjection);
+        {
+            using (var context = _contextCreator())
+            {
+                var actual = efQuery(_setExtractor.Set<TItem1>(context)).ToList();
+                var expected = l2oQuery(_expectedData.Set<TItem1>()).ToList();
+
+                if (elementSorter != null)
+                {
+                    actual = actual.OrderBy(elementSorter).ToList();
+                    expected = expected.OrderBy(elementSorter).ToList();
+                }
+
+                if (clientProjection != null)
+                {
+                    actual = actual.Select(clientProjection).ToList();
+                    expected = expected.Select(clientProjection).ToList();
+                }
+
+                _includeResultAsserter.AssertResult(expected, actual, expectedIncludes);
+            }
+        }
 
         public void AssertIncludeQuery<TItem1, TItem2>(
             Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> query,
@@ -311,58 +597,46 @@ namespace Microsoft.EntityFrameworkCore.Query
             => AssertIncludeQuery(query, query, expectedIncludes, elementSorter, clientProjection);
 
         public void AssertIncludeQuery<TItem1, TItem2>(
-            Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> actualQuery,
-            Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> expectedQuery,
+            Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> efQuery,
+            Func<IQueryable<TItem1>, IQueryable<TItem2>, IQueryable<object>> l2oQuery,
             List<IExpectedInclude> expectedIncludes,
             Func<dynamic, object> elementSorter = null,
             Func<dynamic, object> clientProjection = null)
             where TItem1 : class
             where TItem2 : class
-            => Fixture.QueryAsserter.AssertIncludeQuery(actualQuery, expectedQuery, expectedIncludes, elementSorter, clientProjection);
-
-        #endregion
-
-        #region Helpers - Sorters
-
-        public static Func<dynamic, dynamic> GroupingSorter<TKey, TElement>()
-            => e => ((IGrouping<TKey, TElement>)e).Key + " " + CollectionSorter<TElement>()(e);
-
-        public static Func<dynamic, dynamic> CollectionSorter<TElement>()
-            => e => ((IEnumerable<TElement>)e).Count();
-
-        #endregion
-
-        #region Helpers - Asserters
-
-        public static Action<dynamic, dynamic> GroupingAsserter<TKey, TElement>(Func<TElement, object> elementSorter = null)
         {
-            return (e, a) =>
+            using (var context = _contextCreator())
             {
-                Assert.Equal(((IGrouping<TKey, TElement>)e).Key, ((IGrouping<TKey, TElement>)a).Key);
-                CollectionAsserter(elementSorter)(e, a);
-            };
-        }
+                var actual = efQuery(
+                    _setExtractor.Set<TItem1>(context),
+                    _setExtractor.Set<TItem2>(context)).ToList();
 
-        public static Action<dynamic, dynamic> CollectionAsserter<TElement>(Func<TElement, object> elementSorter = null)
-        {
-            return (e, a) =>
-            {
-                var actual = elementSorter != null
-                    ? ((IEnumerable<TElement>)a).OrderBy(elementSorter).ToList()
-                    : ((IEnumerable<TElement>)a).ToList();
+                var expected = l2oQuery(
+                    _expectedData.Set<TItem1>(),
+                    _expectedData.Set<TItem2>()).ToList();
 
-                var expected = elementSorter != null
-                    ? ((IEnumerable<TElement>)e).OrderBy(elementSorter).ToList()
-                    : ((IEnumerable<TElement>)e).ToList();
-
-                Assert.Equal(expected.Count, actual.Count);
-                for (var i = 0; i < expected.Count; i++)
+                if (elementSorter != null)
                 {
-                    Assert.Equal(expected[i], actual[i]);
+                    actual = actual.OrderBy(elementSorter).ToList();
+                    expected = expected.OrderBy(elementSorter).ToList();
                 }
-            };
+
+                if (clientProjection != null)
+                {
+                    actual = actual.Select(clientProjection).ToList();
+                    expected = expected.Select(clientProjection).ToList();
+                }
+
+                _includeResultAsserter.AssertResult(expected, actual, expectedIncludes);
+            }
         }
 
         #endregion
+
+        private class DefaultSetExtractor : ISetExtractor
+        {
+            public override IQueryable<TEntity> Set<TEntity>(DbContext context)
+                => context.Set<TEntity>();
+        }
     }
 }
